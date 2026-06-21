@@ -52,6 +52,8 @@ export async function POST(request: Request, context: IdRouteContext) {
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
+    console.error("Business review action failed", error);
+
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 400 });
   }
 }
