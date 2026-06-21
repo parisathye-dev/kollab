@@ -26,7 +26,40 @@ type CurrentProfileResult = {
   profile: Profile;
 };
 
-function toErrorMessage(_error: unknown, fallback: string): string {
+type RegisterResult = {
+  requiresEmailConfirmation: boolean;
+};
+
+function getErrorField(error: unknown, field: "code" | "message"): string | null {
+  if (!error || typeof error !== "object" || !(field in error)) {
+    return null;
+  }
+
+  const value = error[field as keyof typeof error];
+
+  return typeof value === "string" ? value : null;
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  const code = getErrorField(error, "code");
+  const message = getErrorField(error, "message")?.toLowerCase() ?? "";
+
+  if (code === "over_email_send_rate_limit") {
+    return "Supabase email sending is rate limited. Please wait a few minutes or turn off email confirmations for testing.";
+  }
+
+  if (code === "email_not_confirmed" || message.includes("email not confirmed")) {
+    return "Please confirm your email before signing in. For testing, turn off email confirmations in Supabase.";
+  }
+
+  if (code === "email_address_invalid") {
+    return "Use a real email address. Supabase rejected this email domain.";
+  }
+
+  if (code === "invalid_credentials") {
+    return "Email or password is incorrect, or the account has not been confirmed yet.";
+  }
+
   return fallback;
 }
 
@@ -71,11 +104,11 @@ async function getCurrentUserOrThrow(): Promise<User> {
 export async function registerWithEmail(
   input: RegisterInput,
   origin: string,
-): Promise<void> {
+): Promise<RegisterResult> {
   try {
     const values = registerSchema.parse(input);
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: values.email,
       password: values.password,
       options: {
@@ -90,6 +123,10 @@ export async function registerWithEmail(
     if (error) {
       throw error;
     }
+
+    return {
+      requiresEmailConfirmation: !data.session,
+    };
   } catch (error: unknown) {
     throw createAuthError(error, "Registration failed.");
   }

@@ -79,7 +79,18 @@ export function RegisterForm() {
   async function onSubmit(values: RegisterInput) {
     try {
       setIsSubmitting(true);
-      await registerWithEmail(values, window.location.origin);
+      const result = await registerWithEmail(values, window.location.origin);
+
+      if (result.requiresEmailConfirmation) {
+        toast({
+          title: "Confirm your email",
+          description:
+            "Your account was created. Confirm your email, then sign in to continue.",
+        });
+        router.push("/login");
+        return;
+      }
+
       toast({
         title: "Welcome to KOLLAB",
         description: "Your account is ready. Finish your profile next.",
