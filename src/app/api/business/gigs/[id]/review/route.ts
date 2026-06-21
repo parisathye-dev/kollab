@@ -2,12 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { submitBusinessReviewWithServiceRole } from "@/lib/supabase/business-server";
 import { businessReviewSchema } from "@/lib/validation/business";
-
-type RouteContext = {
-  params: {
-    id: string;
-  };
-};
+import {
+  getRouteIdFromContext,
+  type IdRouteContext,
+} from "@/lib/utils/route-params";
 
 function getErrorMessage(_error: unknown): string {
   return "Unable to submit review action.";
@@ -27,7 +25,7 @@ async function readJsonBody(request: Request): Promise<Record<string, unknown>> 
   }
 }
 
-export async function POST(request: Request, context: RouteContext) {
+export async function POST(request: Request, context: IdRouteContext) {
   try {
     const supabase = await createClient();
     const {
@@ -44,9 +42,10 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await readJsonBody(request);
+    const gigId = await getRouteIdFromContext(request, context, "review");
     const values = businessReviewSchema.parse({
       ...body,
-      gigId: context.params.id,
+      gigId,
     });
 
     await submitBusinessReviewWithServiceRole(values, user.id);

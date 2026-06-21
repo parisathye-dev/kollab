@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { acceptApplicationWithServiceRole } from "@/lib/supabase/business-server";
-
-type RouteContext = {
-  params: {
-    id: string;
-  };
-};
+import {
+  getRouteIdFromContext,
+  type IdRouteContext,
+} from "@/lib/utils/route-params";
 
 function getErrorMessage(_error: unknown): string {
   return "Unable to accept application.";
 }
 
-export async function POST(_request: Request, context: RouteContext) {
+export async function POST(request: Request, context: IdRouteContext) {
   try {
     const supabase = await createClient();
     const {
@@ -28,7 +26,8 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    await acceptApplicationWithServiceRole(context.params.id, user.id);
+    const applicationId = await getRouteIdFromContext(request, context, "accept");
+    await acceptApplicationWithServiceRole(applicationId, user.id);
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
