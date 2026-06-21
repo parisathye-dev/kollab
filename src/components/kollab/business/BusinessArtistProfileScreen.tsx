@@ -141,19 +141,27 @@ export function BusinessArtistProfileScreen({
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Portfolio</h2>
           <div className="grid gap-3 sm:grid-cols-2">
-            {artist.portfolioItems.map((item) => (
-              <Card key={item.id} className="border-0 bg-white shadow-sm">
-                <CardContent className="flex items-center gap-3 pt-1">
-                  <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent-tint text-accent">
-                    <BriefcaseBusiness className="size-5" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{item.type}</p>
-                  </div>
+            {artist.portfolioItems.length > 0 ? (
+              artist.portfolioItems.map((item) => (
+                <Card key={item.id} className="border-0 bg-white shadow-sm">
+                  <CardContent className="flex items-center gap-3 pt-1">
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-accent-tint text-accent">
+                      <BriefcaseBusiness className="size-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">{item.title}</p>
+                      <p className="text-xs text-muted-foreground">{item.type}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <Card className="border-0 bg-white shadow-sm sm:col-span-2">
+                <CardContent className="pt-1 text-sm text-muted-foreground">
+                  This creator has not added portfolio items yet.
                 </CardContent>
               </Card>
-            ))}
+            )}
           </div>
         </section>
       </section>

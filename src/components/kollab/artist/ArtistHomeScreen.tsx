@@ -148,50 +148,63 @@ export function ArtistHomeScreen() {
               Browse
             </Link>
           </div>
-          <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
-            {data.gigsNearYou.map((gig) => (
-              <GigCard
-                key={gig.id}
-                gig={gig}
-                compact
-                className="snap-start"
-              />
-            ))}
-          </div>
+          {data.gigsNearYou.length > 0 ? (
+            <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2">
+              {data.gigsNearYou.map((gig) => (
+                <GigCard
+                  key={gig.id}
+                  gig={gig}
+                  compact
+                  className="snap-start"
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-white p-5 text-sm text-muted-foreground shadow-sm">
+              No live gigs nearby right now.
+            </div>
+          )}
         </section>
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Recent Applications</h2>
           <div className="space-y-3">
-            {data.recentApplications.map((application) => (
-              <Link
-                key={application.id}
-                href={`/artist/gig/${application.gigId}`}
-                aria-label={`Open application for ${application.title}`}
-                className="block rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <Card className="border-0 bg-white shadow-sm">
-                  <CardContent className="flex items-center justify-between gap-3 pt-1">
-                    <div className="min-w-0">
-                      <h3 className="truncate font-medium">{application.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {application.businessName} · {formatInr(application.quotedRate)}
-                      </p>
-                    </div>
-                    <Badge
-                      className={cn(
-                        application.status === "accepted" &&
-                          "bg-accent-tint text-accent",
-                        application.status === "pending" &&
-                          "bg-primary-tint text-primary",
-                      )}
-                    >
-                      {application.status}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
+            {data.recentApplications.length > 0 ? (
+              data.recentApplications.map((application) => (
+                <Link
+                  key={application.id}
+                  href={`/artist/gig/${application.gigId}`}
+                  aria-label={`Open application for ${application.title}`}
+                  className="block rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  <Card className="border-0 bg-white shadow-sm">
+                    <CardContent className="flex items-center justify-between gap-3 pt-1">
+                      <div className="min-w-0">
+                        <h3 className="truncate font-medium">{application.title}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {application.businessName} ·{" "}
+                          {formatInr(application.quotedRate)}
+                        </p>
+                      </div>
+                      <Badge
+                        className={cn(
+                          application.status === "accepted" &&
+                            "bg-accent-tint text-accent",
+                          application.status === "pending" &&
+                            "bg-primary-tint text-primary",
+                        )}
+                      >
+                        {application.status}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-white p-5 text-sm text-muted-foreground shadow-sm">
+                Applications you send will appear here.
+              </div>
+            )}
           </div>
         </section>
       </section>

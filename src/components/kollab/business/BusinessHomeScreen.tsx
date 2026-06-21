@@ -150,9 +150,17 @@ export function BusinessHomeScreen() {
             </Link>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {data.activeGigs.map((gig) => (
-              <BusinessGigCard key={gig.id} gig={gig} compact />
-            ))}
+            {data.activeGigs.length > 0 ? (
+              data.activeGigs.map((gig) => (
+                <BusinessGigCard key={gig.id} gig={gig} compact />
+              ))
+            ) : (
+              <Card className="border-0 bg-white shadow-sm md:col-span-2">
+                <CardContent className="pt-1 text-sm text-muted-foreground">
+                  No active gigs right now. Post a new brief when you are ready.
+                </CardContent>
+              </Card>
+            )}
           </div>
         </section>
       </section>

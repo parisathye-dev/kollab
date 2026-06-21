@@ -26,6 +26,7 @@ import type {
   Application,
   ArtistProfile,
   BusinessProfile,
+  Escrow,
   Gig,
   PortfolioItem,
   Profile,
@@ -620,6 +621,92 @@ async function getStoredArtistPortfolio(
   return (artistProfile?.portfolio_items ?? []).map(toPortfolioView);
 }
 
+async function getLiveArtistEarnings(
+  artistId: string,
+): Promise<ArtistEarningsData> {
+  const supabase = createClient();
+  const { data: escrows, error } = await supabase
+    .from("escrow")
+    .select("*")
+    .eq("artist_id", artistId)
+    .order("created_at", { ascending: false })
+    .returns<Escrow[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  const escrowRows = escrows ?? [];
+
+  if (escrowRows.length === 0) {
+    return {
+      thisMonth: 0,
+      allTime: 0,
+      ledger: [],
+    };
+  }
+
+  const gigIds = Array.from(new Set(escrowRows.map((escrow) => escrow.gig_id)));
+  const { data: gigs, error: gigsError } = await supabase
+    .from("gigs")
+    .select("*")
+    .in("id", gigIds)
+    .returns<Gig[]>();
+
+  if (gigsError) {
+    throw gigsError;
+  }
+
+  const gigRows = gigs ?? [];
+  const gigMap = new Map(gigRows.map((gig) => [gig.id, gig]));
+  const businessMaps = await getBusinessMaps(
+    gigRows.map((gig) => gig.business_id),
+  );
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const releasedRows = escrowRows.filter((escrow) => escrow.status === "released");
+  const thisMonth = releasedRows
+    .filter((escrow) => {
+      const releasedAt = escrow.released_at
+        ? new Date(escrow.released_at)
+        : new Date(escrow.created_at);
+
+      return (
+        releasedAt.getMonth() === currentMonth &&
+        releasedAt.getFullYear() === currentYear
+      );
+    })
+    .reduce((total, escrow) => total + escrow.artist_payout, 0);
+  const allTime = releasedRows.reduce(
+    (total, escrow) => total + escrow.artist_payout,
+    0,
+  );
+
+  return {
+    thisMonth,
+    allTime,
+    ledger: escrowRows.map((escrow) => {
+      const gig = gigMap.get(escrow.gig_id);
+      const businessName = gig
+        ? businessNameForGig(
+            gig.business_id,
+            businessMaps.profiles,
+            businessMaps.businessProfiles,
+          )
+        : "Local Business";
+
+      return {
+        id: escrow.id,
+        gigTitle: gig?.title ?? "KOLLAB gig",
+        businessName,
+        amount: escrow.artist_payout,
+        status: escrow.status,
+        createdAt: escrow.released_at ?? escrow.created_at,
+      };
+    }),
+  };
+}
+
 export async function getArtistDashboardData(): Promise<ArtistDashboardData> {
   try {
     if (!isSupabaseConfigured()) {
@@ -633,15 +720,19 @@ export async function getArtistDashboardData(): Promise<ArtistDashboardData> {
     }
 
     const artist = await getCurrentArtistSummary();
-    const liveGigs = await getLiveGigDetailsForArtist(artist);
-    const recentApplications = await getArtistApplications(artist.id);
+    const [liveGigs, recentApplications, earnings] = await Promise.all([
+      getLiveGigDetailsForArtist(artist),
+      getArtistApplications(artist.id),
+      getLiveArtistEarnings(artist.id),
+    ]);
 
     return {
-      artist,
-      gigsNearYou:
-        liveGigs.length > 0
-          ? liveGigs.map(toGigPreview)
-          : demoGigs.map(toGigPreview),
+      artist: {
+        ...artist,
+        thisMonthEarnings: earnings.thisMonth,
+        allTimeEarnings: earnings.allTime,
+      },
+      gigsNearYou: liveGigs.map(toGigPreview),
       recentApplications,
     };
   } catch (error: unknown) {
@@ -657,10 +748,7 @@ export async function getArtistBrowseData(): Promise<ArtistBrowseData> {
 
       return {
         artistSkills: [...artist.skills],
-        gigs:
-          liveGigs.length > 0
-            ? liveGigs.map(toGigPreview)
-            : demoGigs.map(toGigPreview),
+        gigs: liveGigs.map(toGigPreview),
       };
     }
 
@@ -1001,6 +1089,12 @@ export async function setArtistOpenToGigs(value: boolean): Promise<boolean> {
 
 export async function getArtistEarningsData(): Promise<ArtistEarningsData> {
   try {
+    if (isSupabaseConfigured()) {
+      const artistId = await getCurrentUserId();
+
+      return getLiveArtistEarnings(artistId);
+    }
+
     return {
       thisMonth: demoArtist.thisMonthEarnings,
       allTime: demoArtist.allTimeEarnings,

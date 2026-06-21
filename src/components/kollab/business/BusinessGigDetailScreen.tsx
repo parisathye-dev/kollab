@@ -322,81 +322,89 @@ export function BusinessGigDetailScreen({ gigId }: BusinessGigDetailScreenProps)
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Applications Inbox</h2>
-          {data.applications.map((application) => (
-            <Card key={application.id} className="border-0 bg-white shadow-sm">
-              <CardContent className="space-y-4 pt-1">
-                <div className="flex items-start gap-4">
-                  <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-secondary text-sm font-semibold text-secondary-foreground">
-                    {getInitials(application.artist.displayName)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-semibold">
-                          {application.artist.displayName}
-                        </h3>
-                        <p className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Star
-                            className="size-3.5 fill-warning text-warning"
-                            aria-hidden="true"
-                          />
-                          {application.artist.avgRating.toFixed(1)} ·{" "}
-                          {application.artist.totalGigs} gigs
-                        </p>
+          {data.applications.length > 0 ? (
+            data.applications.map((application) => (
+              <Card key={application.id} className="border-0 bg-white shadow-sm">
+                <CardContent className="space-y-4 pt-1">
+                  <div className="flex items-start gap-4">
+                    <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-secondary text-sm font-semibold text-secondary-foreground">
+                      {getInitials(application.artist.displayName)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">
+                            {application.artist.displayName}
+                          </h3>
+                          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Star
+                              className="size-3.5 fill-warning text-warning"
+                              aria-hidden="true"
+                            />
+                            {application.artist.avgRating.toFixed(1)} ·{" "}
+                            {application.artist.totalGigs} gigs
+                          </p>
+                        </div>
+                        <Badge
+                          className={cn(
+                            application.status === "accepted" &&
+                              "bg-accent-tint text-accent",
+                            application.status === "pending" &&
+                              "bg-secondary-tint text-secondary",
+                            application.status === "rejected" &&
+                              "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {application.status}
+                        </Badge>
                       </div>
-                      <Badge
-                        className={cn(
-                          application.status === "accepted" &&
-                            "bg-accent-tint text-accent",
-                          application.status === "pending" &&
-                            "bg-secondary-tint text-secondary",
-                          application.status === "rejected" &&
-                            "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {application.status}
-                      </Badge>
                     </div>
                   </div>
-                </div>
 
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {application.pitchText}
-                </p>
-                <div className="flex items-center justify-between rounded-2xl bg-[#FFF8F3] p-3">
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <IndianRupee className="size-4" aria-hidden="true" />
-                    Quoted Rate
-                  </span>
-                  <span className="font-semibold">
-                    {formatInr(application.quotedRate)}
-                  </span>
-                </div>
-
-                {application.status === "pending" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      aria-label={`Accept ${application.artist.displayName}`}
-                      disabled={acceptingId === application.id}
-                      className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                      onClick={() => acceptApplication(application)}
-                    >
-                      {acceptingId === application.id ? "Accepting..." : "Accept"}
-                    </Button>
-                    <Button
-                      type="button"
-                      aria-label={`Decline ${application.artist.displayName}`}
-                      variant="outline"
-                      onClick={() => declineApplication(application.id)}
-                    >
-                      Decline
-                    </Button>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {application.pitchText}
+                  </p>
+                  <div className="flex items-center justify-between rounded-2xl bg-[#FFF8F3] p-3">
+                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <IndianRupee className="size-4" aria-hidden="true" />
+                      Quoted Rate
+                    </span>
+                    <span className="font-semibold">
+                      {formatInr(application.quotedRate)}
+                    </span>
                   </div>
-                ) : null}
+
+                  {application.status === "pending" ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        type="button"
+                        aria-label={`Accept ${application.artist.displayName}`}
+                        disabled={acceptingId === application.id}
+                        className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                        onClick={() => acceptApplication(application)}
+                      >
+                        {acceptingId === application.id ? "Accepting..." : "Accept"}
+                      </Button>
+                      <Button
+                        type="button"
+                        aria-label={`Decline ${application.artist.displayName}`}
+                        variant="outline"
+                        onClick={() => declineApplication(application.id)}
+                      >
+                        Decline
+                      </Button>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card className="border-0 bg-white shadow-sm">
+              <CardContent className="pt-1 text-sm text-muted-foreground">
+                New artist proposals will appear here.
               </CardContent>
             </Card>
-          ))}
+          )}
         </section>
       </section>
     </BusinessShell>
