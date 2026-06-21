@@ -764,9 +764,7 @@ export async function getArtistPortfolio(): Promise<PortfolioItemView[]> {
       const userId = await getCurrentUserId();
       const storedItems = await getStoredArtistPortfolio(userId);
 
-      return storedItems.length > 0
-        ? storedItems
-        : clonePortfolioItems(demoPortfolio);
+      return storedItems;
     }
 
     return clonePortfolioItems(demoPortfolio);
@@ -909,10 +907,7 @@ export async function getArtistProfileData(): Promise<ArtistProfileData> {
       return {
         artist,
         bio: profile?.bio ?? "",
-        portfolioItems:
-          storedItems.length > 0
-            ? storedItems
-            : clonePortfolioItems(demoPortfolio),
+        portfolioItems: storedItems,
       };
     }
 
@@ -960,6 +955,8 @@ export async function updateArtistProfile(
       if (artistError) {
         throw artistError;
       }
+
+      return getArtistProfileData();
     }
 
     return {
