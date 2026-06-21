@@ -22,6 +22,7 @@ import type {
   BusinessApplication,
   BusinessArtistDiscoveryData,
   BusinessArtistProfile,
+  BusinessRadiusKm,
   BusinessDashboardData,
   BusinessDeliverable,
   BusinessGigDetailData,
@@ -31,6 +32,25 @@ import type {
   BusinessReviewData,
   BusinessSummary,
 } from "@/types/business";
+import type {
+  Application,
+  ArtistProfile,
+  BusinessProfile,
+  Escrow,
+  Gig,
+  Profile,
+} from "@/types/database";
+
+const artistSkillValues: ArtistSkill[] = [
+  "reel_editor",
+  "photographer",
+  "graphic_designer",
+  "ui_ux",
+  "motion_designer",
+  "copywriter",
+  "videographer",
+  "illustrator",
+];
 
 const demoBusiness: BusinessSummary = {
   id: "491f9ffd-4413-4af5-b9a5-b8bf0c598799",
@@ -371,6 +391,185 @@ function filteredArtists(
     .map(cloneArtist);
 }
 
+function isArtistSkill(value: string | null | undefined): value is ArtistSkill {
+  return artistSkillValues.includes(value as ArtistSkill);
+}
+
+function normalizeSkills(skills: string[] | null | undefined): ArtistSkill[] {
+  const normalized = (skills ?? []).filter(isArtistSkill);
+
+  return normalized.length > 0 ? normalized : ["reel_editor"];
+}
+
+function normalizeRadius(radiusKm: number): BusinessRadiusKm {
+  if (radiusKm === 5 || radiusKm === 10 || radiusKm === 25) {
+    return radiusKm;
+  }
+
+  return 999;
+}
+
+function businessTypeLabel(value: string | null): string {
+  if (!value) {
+    return "Business";
+  }
+
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function toBusinessSummary(
+  profile: Profile,
+  businessProfile: BusinessProfile | null,
+  gigs: Gig[],
+  applications: Application[],
+): BusinessSummary {
+  return {
+    id: profile.id,
+    businessName: businessProfile?.business_name ?? profile.display_name,
+    businessType: businessTypeLabel(businessProfile?.business_type ?? null),
+    avatarUrl: profile.avatar_url,
+    liveGigCount: gigs.filter((gig) => gig.status === "live").length,
+    pendingApplications: applications.filter(
+      (application) => application.status === "pending",
+    ).length,
+    totalGigsPosted: gigs.length,
+    totalSpent: demoBusiness.totalSpent,
+    avgRatingGiven: demoBusiness.avgRatingGiven,
+  };
+}
+
+function toBusinessGigPreviewFromDatabase(
+  gig: Gig,
+  applications: Application[],
+): BusinessGigPreview {
+  const skillRequired = isArtistSkill(gig.skill_required)
+    ? gig.skill_required
+    : "reel_editor";
+
+  return {
+    id: gig.id,
+    title: gig.title,
+    description: gig.description,
+    skillRequired,
+    budgetMin: gig.budget_min,
+    budgetMax: gig.budget_max,
+    deadline: gig.deadline,
+    locationText: gig.location_text ?? "Remote",
+    latitude: Number(gig.latitude ?? 19.2183),
+    longitude: Number(gig.longitude ?? 72.9781),
+    radiusKm: normalizeRadius(gig.radius_km),
+    workType: gig.work_type,
+    status: gig.status,
+    referenceUrls: gig.reference_urls ?? [],
+    applicantCount: applications.length,
+    pendingApplications: applications.filter(
+      (application) => application.status === "pending",
+    ).length,
+  };
+}
+
+function toBusinessArtistFromDatabase(
+  profile: Profile,
+  artistProfile: ArtistProfile | null,
+): BusinessArtistProfile {
+  const portfolioItems = (artistProfile?.portfolio_items ?? []).map(
+    (item, index) => ({
+      id: `${item.url}-${index}`,
+      title: item.title ?? "Portfolio item",
+      type: item.type,
+      url: item.url,
+    }),
+  );
+
+  return {
+    id: profile.id,
+    displayName: profile.display_name,
+    avatarUrl: profile.avatar_url,
+    locationText: profile.location_text ?? "Mumbai",
+    latitude: Number(profile.latitude ?? 19.2183),
+    longitude: Number(profile.longitude ?? 72.9781),
+    skills: normalizeSkills(artistProfile?.skills),
+    isOpenToGigs: artistProfile?.is_open_to_gigs ?? true,
+    totalGigs: artistProfile?.total_gigs ?? 0,
+    avgRating: Number(artistProfile?.avg_rating ?? 0),
+    rateMin: artistProfile?.rate_min ?? 0,
+    rateMax: artistProfile?.rate_max ?? artistProfile?.rate_min ?? 0,
+    distanceKm: 0,
+    bio: profile.bio ?? "",
+    portfolioItems,
+  };
+}
+
+async function getCurrentBusinessRows() {
+  const supabase = createClient();
+  const businessId = await getCurrentUserId();
+  const [
+    { data: profile, error: profileError },
+    { data: businessProfile, error: businessError },
+    { data: gigs, error: gigsError },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", businessId)
+      .returns<Profile[]>()
+      .maybeSingle(),
+    supabase
+      .from("business_profiles")
+      .select("*")
+      .eq("id", businessId)
+      .returns<BusinessProfile[]>()
+      .maybeSingle(),
+    supabase
+      .from("gigs")
+      .select("*")
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: false })
+      .returns<Gig[]>(),
+  ]);
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  if (businessError) {
+    throw businessError;
+  }
+
+  if (gigsError) {
+    throw gigsError;
+  }
+
+  if (!profile) {
+    throw new Error("Your business profile could not be found.");
+  }
+
+  return {
+    profile,
+    businessProfile,
+    gigs: gigs ?? [],
+  };
+}
+
+async function getApplicationsForGigs(gigIds: string[]): Promise<Application[]> {
+  if (gigIds.length === 0) {
+    return [];
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("applications")
+    .select("*")
+    .in("gig_id", gigIds)
+    .returns<Application[]>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data ?? [];
+}
+
 async function getCurrentUserId(): Promise<string> {
   const supabase = createClient();
   const {
@@ -427,6 +626,35 @@ function safeFileName(name: string): string {
 
 export async function getBusinessDashboardData(): Promise<BusinessDashboardData> {
   try {
+    if (isSupabaseConfigured()) {
+      const { profile, businessProfile, gigs } = await getCurrentBusinessRows();
+      const applications = await getApplicationsForGigs(gigs.map((gig) => gig.id));
+      const applicationsByGig = new Map<string, Application[]>();
+
+      applications.forEach((application) => {
+        const current = applicationsByGig.get(application.gig_id) ?? [];
+        applicationsByGig.set(application.gig_id, [...current, application]);
+      });
+
+      return {
+        business: toBusinessSummary(
+          profile,
+          businessProfile,
+          gigs,
+          applications,
+        ),
+        activeGigs:
+          gigs.length > 0
+            ? gigs.map((gig) =>
+                toBusinessGigPreviewFromDatabase(
+                  gig,
+                  applicationsByGig.get(gig.id) ?? [],
+                ),
+              )
+            : demoGigs.map(cloneGig),
+      };
+    }
+
     return {
       business: { ...demoBusiness },
       activeGigs: demoGigs.map(cloneGig),
@@ -517,15 +745,35 @@ export async function getBusinessArtistDiscoveryData(
   try {
     const values = businessArtistFilterSchema.parse(filters);
 
-    return {
-      artists: filteredArtists(values),
-      activeGigs: demoGigs
+    let activeGigs: Pick<BusinessGigPreview, "id" | "title" | "skillRequired">[] =
+      demoGigs
         .filter((gig) => gig.status === "live")
         .map((gig) => ({
           id: gig.id,
           title: gig.title,
           skillRequired: gig.skillRequired,
-        })),
+        }));
+
+    if (isSupabaseConfigured()) {
+      const { gigs } = await getCurrentBusinessRows();
+      const realGigs = gigs
+        .filter((gig) => gig.status === "live")
+        .map((gig) => ({
+          id: gig.id,
+          title: gig.title,
+          skillRequired: isArtistSkill(gig.skill_required)
+            ? gig.skill_required
+            : "reel_editor",
+        }));
+
+      if (realGigs.length > 0) {
+        activeGigs = realGigs;
+      }
+    }
+
+    return {
+      artists: filteredArtists(values),
+      activeGigs,
     };
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Unable to load artists."));
@@ -564,6 +812,121 @@ export async function getBusinessGigDetail(
   gigId: string,
 ): Promise<BusinessGigDetailData> {
   try {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      const { data: gig, error } = await supabase
+        .from("gigs")
+        .select("*")
+        .eq("id", gigId)
+        .returns<Gig[]>()
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (gig) {
+        const [
+          { data: applications, error: applicationsError },
+          { data: escrow, error: escrowError },
+        ] = await Promise.all([
+          supabase
+            .from("applications")
+            .select("*")
+            .eq("gig_id", gig.id)
+            .returns<Application[]>(),
+          supabase
+            .from("escrow")
+            .select("*")
+            .eq("gig_id", gig.id)
+            .returns<Escrow[]>()
+            .maybeSingle(),
+        ]);
+
+        if (applicationsError) {
+          throw applicationsError;
+        }
+
+        if (escrowError) {
+          throw escrowError;
+        }
+
+        const applicationRows = applications ?? [];
+        const artistIds = applicationRows.map(
+          (application) => application.artist_id,
+        );
+        const [
+          { data: artistProfiles, error: profilesError },
+          { data: artistRows, error: artistRowsError },
+        ] =
+          artistIds.length > 0
+            ? await Promise.all([
+                supabase
+                  .from("profiles")
+                  .select("*")
+                  .in("id", artistIds)
+                  .returns<Profile[]>(),
+                supabase
+                  .from("artist_profiles")
+                  .select("*")
+                  .in("id", artistIds)
+                  .returns<ArtistProfile[]>(),
+              ])
+            : [
+                { data: [], error: null },
+                { data: [], error: null },
+              ];
+
+        if (profilesError) {
+          throw profilesError;
+        }
+
+        if (artistRowsError) {
+          throw artistRowsError;
+        }
+
+        const profileMap = new Map(
+          (artistProfiles ?? []).map((profile) => [profile.id, profile]),
+        );
+        const artistMap = new Map(
+          (artistRows ?? []).map((profile) => [profile.id, profile]),
+        );
+
+        return {
+          gig: toBusinessGigPreviewFromDatabase(gig, applicationRows),
+          applications: applicationRows.flatMap((application) => {
+            const profile = profileMap.get(application.artist_id);
+
+            if (!profile) {
+              return [];
+            }
+
+            return [
+              {
+                id: application.id,
+                artist: toBusinessArtistFromDatabase(
+                  profile,
+                  artistMap.get(profile.id) ?? null,
+                ),
+                pitchText: application.pitch_text,
+                quotedRate: application.quoted_rate,
+                status: application.status,
+                createdAt: application.created_at,
+              },
+            ];
+          }),
+          escrow: escrow
+            ? {
+                id: escrow.id,
+                status: escrow.status,
+                amountHeld: escrow.amount_held,
+                artistPayout: escrow.artist_payout,
+              }
+            : null,
+        };
+      }
+    }
+
     const gig = demoGigs.find((item) => item.id === gigId) ?? demoGigs[0];
     const isReviewGig = gig.status === "under_review";
 
