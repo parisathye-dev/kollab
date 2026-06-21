@@ -141,6 +141,38 @@ function getErrorMessage(_error: unknown, fallback: string): string {
   return fallback;
 }
 
+async function parseJsonResponse(response: Response): Promise<Record<string, unknown>> {
+  try {
+    const payload = await response.json();
+
+    if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+      return payload as Record<string, unknown>;
+    }
+
+    return {};
+  } catch (error: unknown) {
+    return {};
+  }
+}
+
+async function postJson(path: string, body: Record<string, unknown>): Promise<void> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const payload = await parseJsonResponse(response);
+    const message =
+      typeof payload.error === "string" ? payload.error : "Request failed.";
+
+    throw new Error(message);
+  }
+}
+
 function safeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "-");
 }
@@ -753,26 +785,7 @@ export async function submitArtistWork(gigId: string): Promise<void> {
       return;
     }
 
-    const supabase = createClient();
-    const currentUser = await getCurrentProfile();
-    const { error: gigError } = await supabase
-      .from("gigs")
-      .update({ status: "under_review" })
-      .eq("id", values.gigId);
-
-    if (gigError) {
-      throw gigError;
-    }
-
-    const { error: messageError } = await supabase.from("messages").insert({
-      gig_id: values.gigId,
-      sender_id: currentUser.id,
-      content: "Artist has submitted their work for review.",
-    });
-
-    if (messageError) {
-      throw messageError;
-    }
+    await postJson(`/api/shared/gigs/${values.gigId}/submit-work`, {});
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Unable to submit work."));
   }
