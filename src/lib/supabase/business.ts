@@ -38,6 +38,7 @@ import type {
   BusinessProfile,
   Escrow,
   Gig,
+  Message,
   Profile,
 } from "@/types/database";
 
@@ -970,6 +971,121 @@ export async function getBusinessReviewData(
   gigId: string,
 ): Promise<BusinessReviewData> {
   try {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      const { data: gig, error: gigError } = await supabase
+        .from("gigs")
+        .select("*")
+        .eq("id", gigId)
+        .returns<Gig[]>()
+        .maybeSingle();
+
+      if (gigError) {
+        throw gigError;
+      }
+
+      if (gig) {
+        const [
+          { data: application, error: applicationError },
+          { data: escrow, error: escrowError },
+          { data: messages, error: messagesError },
+        ] = await Promise.all([
+          supabase
+            .from("applications")
+            .select("*")
+            .eq("gig_id", gig.id)
+            .eq("status", "accepted")
+            .returns<Application[]>()
+            .maybeSingle(),
+          supabase
+            .from("escrow")
+            .select("*")
+            .eq("gig_id", gig.id)
+            .returns<Escrow[]>()
+            .maybeSingle(),
+          supabase
+            .from("messages")
+            .select("*")
+            .eq("gig_id", gig.id)
+            .order("created_at", { ascending: false })
+            .returns<Message[]>(),
+        ]);
+
+        if (applicationError) {
+          throw applicationError;
+        }
+
+        if (escrowError) {
+          throw escrowError;
+        }
+
+        if (messagesError) {
+          throw messagesError;
+        }
+
+        if (!application || !escrow) {
+          throw new Error("Accepted application or escrow not found.");
+        }
+
+        const [
+          { data: profile, error: profileError },
+          { data: artistProfile, error: artistProfileError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", application.artist_id)
+            .returns<Profile[]>()
+            .maybeSingle(),
+          supabase
+            .from("artist_profiles")
+            .select("*")
+            .eq("id", application.artist_id)
+            .returns<ArtistProfile[]>()
+            .maybeSingle(),
+        ]);
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        if (artistProfileError) {
+          throw artistProfileError;
+        }
+
+        if (!profile) {
+          throw new Error("Artist profile not found.");
+        }
+
+        const fileMessages = (messages ?? []).filter(
+          (message) => Boolean(message.attachment_url),
+        );
+        const deliverables =
+          fileMessages.length > 0
+            ? await Promise.all(fileMessages.map(toDeliverableFromMessage))
+            : [
+                {
+                  id: `chat-${gig.id}`,
+                  title: "Submission notes in chat",
+                  type: "link" as const,
+                  url: `/shared/chat/${gig.id}`,
+                  createdAt: messages?.[0]?.created_at ?? gig.updated_at,
+                },
+              ];
+
+        return {
+          gig: toBusinessGigPreviewFromDatabase(gig, [application]),
+          artist: toBusinessArtistFromDatabase(profile, artistProfile ?? null),
+          escrow: {
+            id: escrow.id,
+            status: escrow.status,
+            amountHeld: escrow.amount_held,
+          },
+          deliverables,
+        };
+      }
+    }
+
     const gig = demoGigs.find((item) => item.id === gigId) ?? demoGigs[2];
 
     return {
@@ -988,6 +1104,53 @@ export async function getBusinessReviewData(
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Unable to load review data."));
   }
+}
+
+function deliverableTypeFromMime(
+  mimeType: string | null,
+): BusinessDeliverable["type"] {
+  if (!mimeType) {
+    return "link";
+  }
+
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+
+  if (mimeType.startsWith("video/")) {
+    return "video";
+  }
+
+  if (mimeType === "application/pdf") {
+    return "pdf";
+  }
+
+  return "link";
+}
+
+async function toDeliverableFromMessage(
+  message: Message,
+): Promise<BusinessDeliverable> {
+  if (!message.attachment_url) {
+    throw new Error("Message has no attachment.");
+  }
+
+  const supabase = createClient();
+  const { data, error } = await supabase.storage
+    .from("gig-deliverables")
+    .createSignedUrl(message.attachment_url, 60 * 60);
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    id: message.id,
+    title: message.attachment_name ?? "Deliverable",
+    type: deliverableTypeFromMime(message.attachment_type),
+    url: data.signedUrl,
+    createdAt: message.created_at,
+  };
 }
 
 export async function submitBusinessReviewAction(
