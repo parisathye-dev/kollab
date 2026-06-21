@@ -211,6 +211,8 @@ export async function submitBusinessReviewWithServiceRole(
       throw messageError;
     }
   } catch (error: unknown) {
+    console.error("Business review service failed", error);
+
     throw new Error(getErrorMessage(error, "Unable to submit review action."));
   }
 }
