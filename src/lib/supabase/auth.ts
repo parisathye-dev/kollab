@@ -7,12 +7,14 @@ import {
   loginSchema,
   registerSchema,
   resetPasswordSchema,
+  updatePasswordSchema,
   type ArtistOnboardingInput,
   type BusinessOnboardingInput,
   type LoginInput,
   type ProfileRoleInput,
   type RegisterInput,
   type ResetPasswordInput,
+  type UpdatePasswordInput,
 } from "@/lib/validation/auth";
 import type { Database, Profile } from "@/types/database";
 
@@ -191,6 +193,79 @@ export async function sendPasswordResetEmail(
     }
   } catch (error: unknown) {
     throw createAuthError(error, "Unable to send the reset email.");
+  }
+}
+
+export async function preparePasswordRecoverySession(
+  currentUrl: string,
+): Promise<boolean> {
+  try {
+    const supabase = createClient();
+    const url = new URL(currentUrl);
+    const code = url.searchParams.get("code");
+
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+
+      if (error) {
+        throw error;
+      }
+
+      return true;
+    }
+
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    if (accessToken && refreshToken) {
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      return true;
+    }
+
+    if (url.searchParams.get("mode") === "update") {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
+
+      if (error) {
+        throw error;
+      }
+
+      return Boolean(session);
+    }
+
+    return false;
+  } catch (error: unknown) {
+    throw createAuthError(
+      error,
+      "This password reset link is invalid or has expired.",
+    );
+  }
+}
+
+export async function updatePassword(input: UpdatePasswordInput): Promise<void> {
+  try {
+    const values = updatePasswordSchema.parse(input);
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({
+      password: values.password,
+    });
+
+    if (error) {
+      throw error;
+    }
+  } catch (error: unknown) {
+    throw createAuthError(error, "Unable to update your password.");
   }
 }
 

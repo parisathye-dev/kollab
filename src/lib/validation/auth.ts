@@ -29,6 +29,21 @@ export const resetPasswordSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
 });
 
+export const updatePasswordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters."),
+    confirmPassword: z.string().min(8, "Confirm your password."),
+  })
+  .superRefine((value, context) => {
+    if (value.password !== value.confirmPassword) {
+      context.addIssue({
+        code: "custom",
+        message: "Passwords do not match.",
+        path: ["confirmPassword"],
+      });
+    }
+  });
+
 export const avatarFileSchema = z
   .custom<File>(
     (value) => typeof File !== "undefined" && value instanceof File,
@@ -89,6 +104,7 @@ export type ProfileRoleInput = z.infer<typeof profileRoleSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type UpdatePasswordInput = z.infer<typeof updatePasswordSchema>;
 export type ArtistSkillInput = z.infer<typeof artistSkillSchema>;
 export type ArtistOnboardingInput = z.infer<typeof artistOnboardingSchema>;
 export type BusinessTypeInput = z.infer<typeof businessTypeSchema>;
