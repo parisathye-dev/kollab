@@ -35,6 +35,7 @@ export interface PortfolioItem {
   url: string;
   type: string;
   title?: string | null;
+  description?: string | null;
   thumbnail_url?: string | null;
 }
 

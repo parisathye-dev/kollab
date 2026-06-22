@@ -98,6 +98,7 @@ export const businessOnboardingSchema = z.object({
   business_name: z.string().trim().min(2, "Enter your business name."),
   business_type: businessTypeSchema,
   location_text: z.string().trim().min(2, "Enter your location."),
+  avatar_url: z.string().url().optional(),
 });
 
 export type ProfileRoleInput = z.infer<typeof profileRoleSchema>;

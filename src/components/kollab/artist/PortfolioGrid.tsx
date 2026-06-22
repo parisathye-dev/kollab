@@ -1,7 +1,15 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { ArrowDown, ArrowUp, FileText, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ExternalLink,
+  FileText,
+  Image as ImageIcon,
+  PlaySquare,
+  Trash2,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { PortfolioItemView } from "@/types/artist";
@@ -10,6 +18,7 @@ type PortfolioGridProps = {
   items: PortfolioItemView[];
   readOnly?: boolean;
   onTitleChange?: (id: string, title: string) => void;
+  onDescriptionChange?: (id: string, description: string) => void;
   onDelete?: (id: string) => void;
   onMove?: (id: string, direction: "up" | "down") => void;
 };
@@ -25,10 +34,79 @@ function getKindLabel(kind: PortfolioItemView["kind"]): string {
   return labels[kind];
 }
 
+function canRenderMedia(url: string): boolean {
+  return (
+    url.startsWith("http") ||
+    url.startsWith("blob:") ||
+    url.startsWith("data:")
+  );
+}
+
+function PortfolioPreview({ item }: { item: PortfolioItemView }) {
+  const mediaCanRender = canRenderMedia(item.url);
+
+  if (item.kind === "image" && mediaCanRender) {
+    return (
+      <img
+        src={item.thumbnail_url ?? item.url}
+        alt={item.title ? `${item.title} preview` : "Portfolio image preview"}
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  if (item.kind === "video" && mediaCanRender) {
+    return (
+      <video
+        aria-label={item.title ? `${item.title} video preview` : "Portfolio video preview"}
+        className="h-full w-full object-cover"
+        controls
+        preload="metadata"
+      >
+        <source src={item.url} type={item.type} />
+      </video>
+    );
+  }
+
+  const Icon =
+    item.kind === "image"
+      ? ImageIcon
+      : item.kind === "video"
+        ? PlaySquare
+        : FileText;
+
+  return (
+    <div
+      className={cn(
+        "flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center",
+        item.kind === "video" && "bg-primary text-primary-foreground",
+        item.kind === "image" && "bg-primary-tint text-primary",
+        item.kind === "pdf" && "bg-secondary-tint text-secondary",
+        item.kind === "file" && "bg-muted text-muted-foreground",
+      )}
+    >
+      <Icon className="size-9" aria-hidden="true" />
+      {item.kind === "pdf" || item.kind === "file" ? (
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open ${item.title}`}
+          className="inline-flex items-center gap-1 rounded-lg bg-white/80 px-2 py-1 text-xs font-semibold text-foreground"
+        >
+          Open
+          <ExternalLink className="size-3" aria-hidden="true" />
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export function PortfolioGrid({
   items,
   readOnly = false,
   onTitleChange,
+  onDescriptionChange,
   onDelete,
   onMove,
 }: PortfolioGridProps) {
@@ -63,16 +141,8 @@ export function PortfolioGrid({
           key={item.id}
           className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-foreground/10"
         >
-          <div
-            className={cn(
-              "flex aspect-[4/3] items-center justify-center sm:aspect-square lg:aspect-[4/3]",
-              item.kind === "video" && "bg-primary text-primary-foreground",
-              item.kind === "image" && "bg-primary-tint text-primary",
-              item.kind === "pdf" && "bg-secondary-tint text-secondary",
-              item.kind === "file" && "bg-muted text-muted-foreground",
-            )}
-          >
-            <FileText className="size-9" aria-hidden="true" />
+          <div className="aspect-[4/3] overflow-hidden sm:aspect-square lg:aspect-[4/3]">
+            <PortfolioPreview item={item} />
           </div>
 
           <div className="space-y-2 p-3">
@@ -80,15 +150,35 @@ export function PortfolioGrid({
               {getKindLabel(item.kind)}
             </p>
             {readOnly ? (
-              <h3 className="line-clamp-2 text-sm font-semibold">
-                {item.title}
-              </h3>
+              <div className="space-y-1">
+                <h3 className="line-clamp-2 text-sm font-semibold">
+                  {item.title}
+                </h3>
+                {item.description ? (
+                  <p className="line-clamp-3 text-xs leading-5 text-muted-foreground">
+                    {item.description}
+                  </p>
+                ) : null}
+              </div>
             ) : (
-              <Input
-                aria-label={`Edit title for ${item.title}`}
-                defaultValue={item.title ?? ""}
-                onBlur={(event) => onTitleChange?.(item.id, event.target.value)}
-              />
+              <div className="space-y-2">
+                <Input
+                  aria-label={`Edit title for ${item.title}`}
+                  defaultValue={item.title ?? ""}
+                  onBlur={(event) => onTitleChange?.(item.id, event.target.value)}
+                />
+                <textarea
+                  aria-label={`Write description for ${item.title}`}
+                  defaultValue={item.description ?? ""}
+                  rows={3}
+                  maxLength={180}
+                  className="w-full resize-none rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                  placeholder="Write what this work shows"
+                  onBlur={(event) =>
+                    onDescriptionChange?.(item.id, event.target.value)
+                  }
+                />
+              </div>
             )}
 
             {!readOnly ? (

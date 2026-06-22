@@ -17,7 +17,12 @@ import {
   type InviteArtistInput,
   type PostGigInput,
 } from "@/lib/validation/business";
-import type { ArtistSkill } from "@/types/artist";
+import { parseArtistProfileDetails } from "@/lib/utils/profile-details";
+import type {
+  ArtistProfileDetails,
+  ArtistSkill,
+  PortfolioItemKind,
+} from "@/types/artist";
 import type {
   BusinessApplication,
   BusinessArtistDiscoveryData,
@@ -25,6 +30,7 @@ import type {
   BusinessRadiusKm,
   BusinessDashboardData,
   BusinessDeliverable,
+  BusinessGigInviteOption,
   BusinessGigDetailData,
   BusinessGigPreview,
   BusinessHistoryData,
@@ -66,6 +72,18 @@ const demoBusiness: BusinessSummary = {
   avgRatingGiven: 4.7,
 };
 
+const demoArtistDetails: ArtistProfileDetails = {
+  summary:
+    "High-retention reels, warm product photography, and mobile-first brand systems for cafes and boutiques.",
+  age: "22",
+  city: "Thane",
+  workStatus: "Studying design and taking weekend gigs",
+  expenses: "Saving for camera gear and local commute costs",
+  degree: "B.Des Visual Communication",
+  customSkills: ["Food styling"],
+  appearance: "light",
+};
+
 const demoArtists: BusinessArtistProfile[] = [
   {
     id: "6fc81fd7-89f2-49be-9efb-90d73a85881d",
@@ -81,19 +99,28 @@ const demoArtists: BusinessArtistProfile[] = [
     rateMin: 8000,
     rateMax: 18000,
     distanceKm: 3.2,
-    bio: "High-retention reels, warm product photography, and mobile-first brand systems for cafes and boutiques.",
+    bio: demoArtistDetails.summary,
+    details: demoArtistDetails,
+    customSkills: demoArtistDetails.customSkills,
+    chatGigId: null,
     portfolioItems: [
       {
         id: "aarav-reel",
         title: "Cafe launch reel",
+        description: "A 30-second launch reel cut for quick social discovery.",
         type: "video/mp4",
+        kind: "video",
         url: "demo://aarav-reel",
+        thumbnail_url: null,
       },
       {
         id: "aarav-photo",
         title: "Menu photography set",
+        description: "Warm natural-light menu shots for cafe listings.",
         type: "image/png",
+        kind: "image",
         url: "demo://aarav-photo",
+        thumbnail_url: null,
       },
     ],
   },
@@ -112,12 +139,24 @@ const demoArtists: BusinessArtistProfile[] = [
     rateMax: 16000,
     distanceKm: 18.4,
     bio: "Illustrated campaign systems, packaging refreshes, and compact copy for local D2C and hospitality brands.",
+    details: {
+      ...demoArtistDetails,
+      summary:
+        "Illustrated campaign systems, packaging refreshes, and compact copy for local D2C and hospitality brands.",
+      city: "Bandra",
+      customSkills: ["Packaging"],
+    },
+    customSkills: ["Packaging"],
+    chatGigId: null,
     portfolioItems: [
       {
         id: "mira-menu",
         title: "Festive menu campaign",
+        description: "Illustration and layout set for festive offers.",
         type: "image/png",
+        kind: "image",
         url: "demo://mira-menu",
+        thumbnail_url: null,
       },
     ],
   },
@@ -136,12 +175,24 @@ const demoArtists: BusinessArtistProfile[] = [
     rateMax: 24000,
     distanceKm: 13.7,
     bio: "Sharp product shoots and motion-led short-form edits for food, travel, and retail businesses.",
+    details: {
+      ...demoArtistDetails,
+      summary:
+        "Sharp product shoots and motion-led short-form edits for food, travel, and retail businesses.",
+      city: "Powai",
+      customSkills: ["Drone basics"],
+    },
+    customSkills: ["Drone basics"],
+    chatGigId: null,
     portfolioItems: [
       {
         id: "kabir-video",
         title: "Boutique hotel walkthrough",
+        description: "A motion-led walkthrough for hospitality discovery.",
         type: "video/mp4",
+        kind: "video",
         url: "demo://kabir-video",
+        thumbnail_url: null,
       },
     ],
   },
@@ -160,12 +211,24 @@ const demoArtists: BusinessArtistProfile[] = [
     rateMax: 28000,
     distanceKm: 8.9,
     bio: "Booking flows, landing pages, and conversion-focused visual systems for neighborhood services.",
+    details: {
+      ...demoArtistDetails,
+      summary:
+        "Booking flows, landing pages, and conversion-focused visual systems for neighborhood services.",
+      city: "Mulund",
+      customSkills: ["No-code landing pages"],
+    },
+    customSkills: ["No-code landing pages"],
+    chatGigId: null,
     portfolioItems: [
       {
         id: "ira-ui",
         title: "Salon booking flow",
+        description: "Booking-flow audit and prototype screens.",
         type: "application/pdf",
+        kind: "pdf",
         url: "demo://ira-ui",
+        thumbnail_url: null,
       },
     ],
   },
@@ -343,6 +406,11 @@ function cloneArtist(artist: BusinessArtistProfile): BusinessArtistProfile {
   return {
     ...artist,
     skills: [...artist.skills],
+    customSkills: [...artist.customSkills],
+    details: {
+      ...artist.details,
+      customSkills: [...artist.details.customSkills],
+    },
     portfolioItems: artist.portfolioItems.map((item) => ({ ...item })),
   };
 }
@@ -429,6 +497,22 @@ function businessTypeLabel(value: string | null): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function getPortfolioKind(fileType: string): PortfolioItemKind {
+  if (fileType.startsWith("image/")) {
+    return "image";
+  }
+
+  if (fileType.startsWith("video/")) {
+    return "video";
+  }
+
+  if (fileType === "application/pdf") {
+    return "pdf";
+  }
+
+  return "file";
+}
+
 function toBusinessSummary(
   profile: Profile,
   businessProfile: BusinessProfile | null,
@@ -487,13 +571,18 @@ function toBusinessGigPreviewFromDatabase(
 function toBusinessArtistFromDatabase(
   profile: Profile,
   artistProfile: ArtistProfile | null,
+  chatGigId: string | null = null,
 ): BusinessArtistProfile {
+  const details = parseArtistProfileDetails(profile.bio);
   const portfolioItems = (artistProfile?.portfolio_items ?? []).map(
     (item, index) => ({
       id: `${item.url}-${index}`,
       title: item.title ?? "Portfolio item",
+      description: item.description ?? null,
       type: item.type,
+      kind: getPortfolioKind(item.type),
       url: item.url,
+      thumbnail_url: item.thumbnail_url ?? null,
     }),
   );
 
@@ -511,7 +600,10 @@ function toBusinessArtistFromDatabase(
     rateMin: artistProfile?.rate_min ?? 0,
     rateMax: artistProfile?.rate_max ?? artistProfile?.rate_min ?? 0,
     distanceKm: 0,
-    bio: profile.bio ?? "",
+    bio: details.summary,
+    details,
+    customSkills: details.customSkills,
+    chatGigId,
     portfolioItems,
   };
 }
@@ -694,13 +786,53 @@ async function getLiveArtists(
     });
 }
 
+async function getAcceptedChatGigIdForBusinessArtist(
+  businessId: string,
+  artistId: string,
+): Promise<string | null> {
+  const supabase = createClient();
+  const { data: gigs, error: gigsError } = await supabase
+    .from("gigs")
+    .select("id")
+    .eq("business_id", businessId)
+    .returns<Pick<Gig, "id">[]>();
+
+  if (gigsError) {
+    throw gigsError;
+  }
+
+  const gigIds = (gigs ?? []).map((gig) => gig.id);
+
+  if (gigIds.length === 0) {
+    return null;
+  }
+
+  const { data: application, error: applicationError } = await supabase
+    .from("applications")
+    .select("gig_id")
+    .eq("artist_id", artistId)
+    .eq("status", "accepted")
+    .in("gig_id", gigIds)
+    .limit(1)
+    .returns<Pick<Application, "gig_id">[]>()
+    .maybeSingle();
+
+  if (applicationError) {
+    throw applicationError;
+  }
+
+  return application?.gig_id ?? null;
+}
+
 async function getLiveBusinessArtistProfile(
   artistId: string,
 ): Promise<BusinessArtistProfile | null> {
   const supabase = createClient();
+  const businessId = await getCurrentUserId();
   const [
     { data: profile, error: profileError },
     { data: artistProfile, error: artistProfileError },
+    chatGigId,
   ] = await Promise.all([
     supabase
       .from("profiles")
@@ -715,6 +847,7 @@ async function getLiveBusinessArtistProfile(
       .eq("id", artistId)
       .returns<ArtistProfile[]>()
       .maybeSingle(),
+    getAcceptedChatGigIdForBusinessArtist(businessId, artistId),
   ]);
 
   if (profileError) {
@@ -725,7 +858,9 @@ async function getLiveBusinessArtistProfile(
     throw artistProfileError;
   }
 
-  return profile ? toBusinessArtistFromDatabase(profile, artistProfile) : null;
+  return profile
+    ? toBusinessArtistFromDatabase(profile, artistProfile, chatGigId)
+    : null;
 }
 
 async function getCurrentUserId(): Promise<string> {
@@ -829,6 +964,34 @@ export async function getBusinessDashboardData(): Promise<BusinessDashboardData>
   }
 }
 
+export async function updateBusinessAvatar(
+  avatarUrl: string,
+): Promise<BusinessDashboardData> {
+  try {
+    if (isSupabaseConfigured()) {
+      const supabase = createClient();
+      const businessId = await getCurrentUserId();
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: avatarUrl })
+        .eq("id", businessId);
+
+      if (error) {
+        throw error;
+      }
+
+      return getBusinessDashboardData();
+    }
+
+    return {
+      business: { ...demoBusiness, avatarUrl },
+      activeGigs: demoGigs.map(cloneGig),
+    };
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Unable to update business logo."));
+  }
+}
+
 export async function createBusinessGig(
   input: PostGigInput,
   fileInput: unknown[],
@@ -910,27 +1073,10 @@ export async function getBusinessArtistDiscoveryData(
   try {
     const values = businessArtistFilterSchema.parse(filters);
 
-    let activeGigs: Pick<BusinessGigPreview, "id" | "title" | "skillRequired">[] =
-      demoGigs
-        .filter((gig) => gig.status === "live")
-        .map((gig) => ({
-          id: gig.id,
-          title: gig.title,
-          skillRequired: gig.skillRequired,
-        }));
+    let activeGigs = await getBusinessInviteGigs();
     let artists = filteredArtists(values);
 
     if (isSupabaseConfigured()) {
-      const { gigs } = await getCurrentBusinessRows();
-      activeGigs = gigs
-        .filter((gig) => gig.status === "live")
-        .map((gig) => ({
-          id: gig.id,
-          title: gig.title,
-          skillRequired: isArtistSkill(gig.skill_required)
-            ? gig.skill_required
-            : "reel_editor",
-        }));
       artists = await getLiveArtists(values);
     }
 
@@ -940,6 +1086,34 @@ export async function getBusinessArtistDiscoveryData(
     };
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Unable to load artists."));
+  }
+}
+
+export async function getBusinessInviteGigs(): Promise<BusinessGigInviteOption[]> {
+  try {
+    if (isSupabaseConfigured()) {
+      const { gigs } = await getCurrentBusinessRows();
+
+      return gigs
+        .filter((gig) => gig.status === "live")
+        .map((gig) => ({
+          id: gig.id,
+          title: gig.title,
+          skillRequired: isArtistSkill(gig.skill_required)
+            ? gig.skill_required
+            : "reel_editor",
+        }));
+    }
+
+    return demoGigs
+      .filter((gig) => gig.status === "live")
+      .map((gig) => ({
+        id: gig.id,
+        title: gig.title,
+        skillRequired: gig.skillRequired,
+      }));
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Unable to load active gigs."));
   }
 }
 

@@ -1,4 +1,8 @@
-import type { ArtistSkill } from "@/types/artist";
+import type {
+  ArtistProfileDetails,
+  ArtistSkill,
+  PortfolioItemKind,
+} from "@/types/artist";
 import type {
   ApplicationStatus,
   EscrowStatus,
@@ -46,6 +50,11 @@ export type BusinessDashboardData = {
   activeGigs: BusinessGigPreview[];
 };
 
+export type BusinessGigInviteOption = Pick<
+  BusinessGigPreview,
+  "id" | "title" | "skillRequired"
+>;
+
 export type BusinessArtistProfile = {
   id: string;
   displayName: string;
@@ -61,17 +70,23 @@ export type BusinessArtistProfile = {
   rateMax: number;
   distanceKm: number;
   bio: string;
+  details: ArtistProfileDetails;
+  customSkills: string[];
+  chatGigId: string | null;
   portfolioItems: {
     id: string;
     title: string;
+    description: string | null;
     type: string;
+    kind: PortfolioItemKind;
     url: string;
+    thumbnail_url: string | null;
   }[];
 };
 
 export type BusinessArtistDiscoveryData = {
   artists: BusinessArtistProfile[];
-  activeGigs: Pick<BusinessGigPreview, "id" | "title" | "skillRequired">[];
+  activeGigs: BusinessGigInviteOption[];
 };
 
 export type BusinessApplication = {

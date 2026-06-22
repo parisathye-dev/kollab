@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Camera,
   IndianRupee,
   Plus,
   Send,
@@ -13,7 +14,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BusinessGigCard } from "@/components/kollab/business/BusinessGigCard";
 import { BusinessShell } from "@/components/kollab/business/BusinessShell";
 import { toast } from "@/hooks/use-toast";
-import { getBusinessDashboardData } from "@/lib/supabase/business";
+import { uploadAvatarFile } from "@/lib/supabase/auth";
+import {
+  getBusinessDashboardData,
+  updateBusinessAvatar,
+} from "@/lib/supabase/business";
 import type { BusinessDashboardData } from "@/types/business";
 
 function formatInr(amount: number): string {
@@ -29,7 +34,9 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function BusinessHomeScreen() {
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [data, setData] = useState<BusinessDashboardData | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   useEffect(() => {
     async function loadDashboard() {
@@ -48,6 +55,27 @@ export function BusinessHomeScreen() {
     void loadDashboard();
   }, []);
 
+  async function handleLogoUpload(file: File | null) {
+    if (!file) {
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      const avatarUrl = await uploadAvatarFile(file);
+      setData(await updateBusinessAvatar(avatarUrl));
+      toast({ title: "Business logo updated" });
+    } catch (error: unknown) {
+      toast({
+        title: "Logo upload failed",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  }
+
   if (!data) {
     return (
       <BusinessShell title="Business Dashboard">
@@ -63,16 +91,48 @@ export function BusinessHomeScreen() {
     <BusinessShell title="Business Dashboard">
       <section className="space-y-5">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-secondary">
-              {data.business.businessType}
-            </p>
-            <h1 className="text-2xl font-semibold">
-              {data.business.businessName}
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage briefs, applications, and payments from one place.
-            </p>
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              aria-label="Upload business logo"
+              disabled={isUploadingLogo}
+              className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-secondary text-lg font-semibold text-secondary-foreground shadow-sm focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-secondary/40"
+              onClick={() => logoInputRef.current?.click()}
+            >
+              {data.business.avatarUrl ? (
+                <img
+                  src={data.business.avatarUrl}
+                  alt={`${data.business.businessName} logo`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                data.business.businessName.slice(0, 1).toUpperCase()
+              )}
+              <span className="absolute bottom-1 right-1 flex size-6 items-center justify-center rounded-lg bg-white text-secondary shadow-sm">
+                <Camera className="size-3.5" aria-hidden="true" />
+              </span>
+            </button>
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="sr-only"
+              aria-label="Choose business logo"
+              onChange={(event) =>
+                void handleLogoUpload(event.target.files?.[0] ?? null)
+              }
+            />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-secondary">
+                {data.business.businessType}
+              </p>
+              <h1 className="truncate text-2xl font-semibold">
+                {data.business.businessName}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Manage briefs, applications, and payments from one place.
+              </p>
+            </div>
           </div>
           <Link
             href="/business/artists"

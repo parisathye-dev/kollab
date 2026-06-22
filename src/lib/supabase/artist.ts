@@ -3,11 +3,18 @@ import {
   applyForGigSchema,
   artistProfileEditSchema,
   portfolioFileSchema,
+  portfolioDetailsSchema,
   portfolioTitleSchema,
   type ApplyForGigInput,
   type ArtistProfileEditInput,
+  type PortfolioDetailsInput,
   type PortfolioTitleInput,
 } from "@/lib/validation/artist";
+import {
+  normalizeCustomSkills,
+  parseArtistProfileDetails,
+  serializeArtistProfileDetails,
+} from "@/lib/utils/profile-details";
 import type {
   ArtistBrowseData,
   ArtistDashboardData,
@@ -285,6 +292,7 @@ function toPortfolioView(
     type: item.type,
     kind: getPortfolioKind(item.type),
     title: item.title ?? "Portfolio item",
+    description: item.description ?? null,
     thumbnail_url: item.thumbnail_url ?? null,
     createdAt: new Date().toISOString(),
   };
@@ -377,6 +385,7 @@ function toPortfolioJson(items: PortfolioItemView[]): PortfolioItem[] {
     url: item.url,
     type: item.type,
     title: item.title,
+    description: item.description ?? null,
     thumbnail_url: item.thumbnail_url ?? null,
   }));
 }
@@ -870,6 +879,7 @@ export async function uploadPortfolioItem(fileInput: unknown) {
       type: file.type,
       kind: getPortfolioKind(file.type),
       title: file.name.replace(/\.[^/.]+$/, ""),
+      description: null,
       thumbnail_url: null,
       createdAt: new Date().toISOString(),
     };
@@ -949,6 +959,43 @@ export async function updatePortfolioTitle(
   }
 }
 
+export async function updatePortfolioDetails(
+  input: PortfolioDetailsInput,
+  items: PortfolioItemView[],
+): Promise<PortfolioItemView[]> {
+  try {
+    const values = portfolioDetailsSchema.parse(input);
+    const nextItems = items.map((item) =>
+      item.id === values.id
+        ? {
+            ...item,
+            title: values.title,
+            description: values.description,
+          }
+        : item,
+    );
+
+    if (!isSupabaseConfigured()) {
+      return nextItems;
+    }
+
+    const supabase = createClient();
+    const userId = await getCurrentUserId();
+    const { error } = await supabase
+      .from("artist_profiles")
+      .update({ portfolio_items: toPortfolioJson(nextItems) })
+      .eq("id", userId);
+
+    if (error) {
+      throw error;
+    }
+
+    return nextItems;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Unable to update portfolio item."));
+  }
+}
+
 export async function savePortfolioItems(
   items: PortfolioItemView[],
 ): Promise<PortfolioItemView[]> {
@@ -992,16 +1039,32 @@ export async function getArtistProfileData(): Promise<ArtistProfileData> {
         throw error;
       }
 
+      const details = parseArtistProfileDetails(profile?.bio);
+
       return {
         artist,
-        bio: profile?.bio ?? "",
+        bio: details.summary,
+        details,
         portfolioItems: storedItems,
       };
     }
 
+    const demoDetails = {
+      summary:
+        "I create high-retention reels, warm product photography, and mobile-first design systems for local brands.",
+      age: "22",
+      city: "Mumbai",
+      workStatus: "Studying design and taking weekend gigs",
+      expenses: "Saving for camera gear and commute costs",
+      degree: "B.Des Visual Communication",
+      customSkills: ["Food styling"],
+      appearance: "light" as const,
+    };
+
     return {
       artist: { ...demoArtist },
-      bio: "I create high-retention reels, warm product photography, and mobile-first design systems for local brands.",
+      bio: demoDetails.summary,
+      details: demoDetails,
       portfolioItems: clonePortfolioItems(demoPortfolio),
     };
   } catch (error: unknown) {
@@ -1018,12 +1081,23 @@ export async function updateArtistProfile(
     if (isSupabaseConfigured()) {
       const supabase = createClient();
       const userId = await getCurrentUserId();
+      const details = {
+        summary: values.bio,
+        age: values.age,
+        city: values.city,
+        workStatus: values.workStatus,
+        expenses: values.expenses,
+        degree: values.degree,
+        customSkills: normalizeCustomSkills(values.customSkills),
+        appearance: values.appearance,
+      };
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
           display_name: values.displayName,
-          bio: values.bio,
+          bio: serializeArtistProfileDetails(details),
           location_text: values.locationText,
+          avatar_url: values.avatarUrl ?? null,
         })
         .eq("id", userId);
 
@@ -1057,6 +1131,16 @@ export async function updateArtistProfile(
         rateMin: values.rateMin,
       },
       bio: values.bio,
+      details: {
+        summary: values.bio,
+        age: values.age,
+        city: values.city,
+        workStatus: values.workStatus,
+        expenses: values.expenses,
+        degree: values.degree,
+        customSkills: normalizeCustomSkills(values.customSkills),
+        appearance: values.appearance,
+      },
       portfolioItems: clonePortfolioItems(demoPortfolio),
     };
   } catch (error: unknown) {

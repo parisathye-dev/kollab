@@ -278,9 +278,17 @@ export function BusinessArtistsScreen() {
                 <Card key={artist.id} className="border-0 bg-white shadow-sm">
                   <CardContent className="space-y-4 pt-1">
                     <div className="flex items-start gap-4">
-                      <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-secondary text-lg font-semibold text-secondary-foreground">
-                        {getInitials(artist.displayName)}
-                      </div>
+                      {artist.avatarUrl ? (
+                        <img
+                          src={artist.avatarUrl}
+                          alt={`${artist.displayName} profile photo`}
+                          className="size-16 shrink-0 rounded-2xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-secondary text-lg font-semibold text-secondary-foreground">
+                          {getInitials(artist.displayName)}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -307,6 +315,11 @@ export function BusinessArtistsScreen() {
                               className="bg-secondary-tint text-secondary"
                             >
                               {skillLabel(skill)}
+                            </Badge>
+                          ))}
+                          {artist.customSkills.map((skill) => (
+                            <Badge key={skill} className="bg-accent-tint text-accent">
+                              {skill}
                             </Badge>
                           ))}
                         </div>

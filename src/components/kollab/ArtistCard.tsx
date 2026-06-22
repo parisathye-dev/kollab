@@ -31,9 +31,17 @@ export function ArtistCard({ artist, compact = false }: ArtistCardProps) {
     <Card className="border-0 bg-white shadow-sm">
       <CardContent className="pt-1">
         <div className="flex items-start gap-4">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-lg font-semibold text-primary-foreground">
-            {getInitials(artist.displayName)}
-          </div>
+          {artist.avatarUrl ? (
+            <img
+              src={artist.avatarUrl}
+              alt={`${artist.displayName} profile photo`}
+              className="size-16 shrink-0 rounded-2xl object-cover"
+            />
+          ) : (
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-lg font-semibold text-primary-foreground">
+              {getInitials(artist.displayName)}
+            </div>
+          )}
           <div className="min-w-0 flex-1 space-y-2">
             <div>
               <h2 className="text-xl font-semibold">{artist.displayName}</h2>

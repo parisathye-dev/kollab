@@ -58,10 +58,29 @@ export const portfolioTitleSchema = z.object({
   title: z.string().trim().min(1, "Enter a title."),
 });
 
+export const portfolioDetailsSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().trim().min(1, "Enter a title."),
+  description: z.string().trim().max(180, "Description must be under 180 characters."),
+});
+
 export const artistProfileEditSchema = z
   .object({
     displayName: z.string().trim().min(2, "Enter your display name."),
     bio: z.string().trim().max(240, "Bio must be under 240 characters."),
+    age: z.string().trim().max(2, "Age must be 2 digits or fewer."),
+    city: z.string().trim().max(60, "City must be under 60 characters."),
+    workStatus: z
+      .string()
+      .trim()
+      .max(80, "Status must be under 80 characters."),
+    expenses: z.string().trim().max(80, "Expenses must be under 80 characters."),
+    degree: z.string().trim().max(80, "Degree must be under 80 characters."),
+    customSkills: z
+      .array(z.string().trim().min(1).max(32))
+      .max(8, "Add no more than 8 custom skills."),
+    appearance: z.enum(["light", "dark"]),
+    avatarUrl: z.string().url().optional(),
     locationText: z.string().trim().min(2, "Enter your location."),
     skills: z.array(artistSkillSchema).min(1, "Select at least one skill."),
     rateMin: z.number().int().min(0, "Enter a valid rate."),
@@ -89,5 +108,6 @@ export const browseFilterSchema = z
 
 export type ApplyForGigInput = z.infer<typeof applyForGigSchema>;
 export type PortfolioTitleInput = z.infer<typeof portfolioTitleSchema>;
+export type PortfolioDetailsInput = z.infer<typeof portfolioDetailsSchema>;
 export type ArtistProfileEditInput = z.infer<typeof artistProfileEditSchema>;
 export type BrowseFilterInput = z.infer<typeof browseFilterSchema>;

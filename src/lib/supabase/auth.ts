@@ -371,6 +371,7 @@ export async function saveBusinessOnboarding(
       .from("profiles")
       .update({
         location_text: values.location_text,
+        avatar_url: values.avatar_url ?? null,
       })
       .eq("id", user.id);
 

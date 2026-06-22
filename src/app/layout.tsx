@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { ThemeInitializer } from "@/components/kollab/shared/ThemeInitializer";
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import "./globals.css";
@@ -22,6 +23,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("h-full font-sans antialiased", inter.variable)}>
       <body className="min-h-full flex flex-col">
+        <ThemeInitializer />
         {children}
         <Toaster />
       </body>

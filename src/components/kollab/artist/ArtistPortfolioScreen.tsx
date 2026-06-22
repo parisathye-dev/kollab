@@ -10,7 +10,7 @@ import { toast } from "@/hooks/use-toast";
 import {
   getArtistPortfolio,
   savePortfolioItems,
-  updatePortfolioTitle,
+  updatePortfolioDetails,
   uploadPortfolioItem,
 } from "@/lib/supabase/artist";
 import type { PortfolioItemView } from "@/types/artist";
@@ -86,11 +86,40 @@ export function ArtistPortfolioScreen() {
 
   async function handleTitleChange(id: string, title: string) {
     try {
-      const nextItems = await updatePortfolioTitle({ id, title }, items);
+      const currentItem = items.find((item) => item.id === id);
+      const nextItems = await updatePortfolioDetails(
+        {
+          id,
+          title,
+          description: currentItem?.description ?? "",
+        },
+        items,
+      );
       setItems(nextItems);
     } catch (error: unknown) {
       toast({
         title: "Title not saved",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleDescriptionChange(id: string, description: string) {
+    try {
+      const currentItem = items.find((item) => item.id === id);
+      const nextItems = await updatePortfolioDetails(
+        {
+          id,
+          title: currentItem?.title ?? "Portfolio item",
+          description,
+        },
+        items,
+      );
+      setItems(nextItems);
+    } catch (error: unknown) {
+      toast({
+        title: "Description not saved",
         description: getErrorMessage(error),
         variant: "destructive",
       });
@@ -162,6 +191,7 @@ export function ArtistPortfolioScreen() {
         <PortfolioGrid
           items={items}
           onTitleChange={handleTitleChange}
+          onDescriptionChange={handleDescriptionChange}
           onDelete={handleDelete}
           onMove={handleMove}
         />

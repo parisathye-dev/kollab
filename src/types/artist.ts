@@ -22,6 +22,18 @@ export type ArtistGigStatus =
   | "live";
 
 export type PortfolioItemKind = "image" | "video" | "pdf" | "file";
+export type AppearanceMode = "light" | "dark";
+
+export type ArtistProfileDetails = {
+  summary: string;
+  age: string;
+  city: string;
+  workStatus: string;
+  expenses: string;
+  degree: string;
+  customSkills: string[];
+  appearance: AppearanceMode;
+};
 
 export type ArtistSummary = {
   id: string;
@@ -92,6 +104,7 @@ export type PortfolioItemView = PortfolioItem & {
 export type ArtistProfileData = {
   artist: ArtistSummary;
   bio: string;
+  details: ArtistProfileDetails;
   portfolioItems: PortfolioItemView[];
 };
 

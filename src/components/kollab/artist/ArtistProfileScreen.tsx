@@ -1,12 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import type { ChangeEvent } from "react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Edit3 } from "lucide-react";
+import { Camera, Edit3, Moon, Sun, X } from "lucide-react";
 import { ArtistCard } from "@/components/kollab/ArtistCard";
 import { ArtistShell } from "@/components/kollab/artist/ArtistShell";
 import { PortfolioGrid } from "@/components/kollab/artist/PortfolioGrid";
+import { setKollabTheme } from "@/components/kollab/shared/ThemeInitializer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { toast } from "@/hooks/use-toast";
+import { uploadAvatarFile } from "@/lib/supabase/auth";
 import {
   getArtistProfileData,
   skillLabel,
@@ -30,6 +33,7 @@ import {
   artistProfileEditSchema,
   type ArtistProfileEditInput,
 } from "@/lib/validation/artist";
+import { normalizeCustomSkill } from "@/lib/utils/profile-details";
 import { cn } from "@/lib/utils";
 import type { ArtistProfileData, ArtistSkill } from "@/types/artist";
 
@@ -91,6 +95,45 @@ export function ArtistProfileScreen() {
 
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <p className="text-sm leading-6 text-muted-foreground">{data.bio}</p>
+          <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+            {data.details.age ? (
+              <p>
+                <span className="font-medium">Age:</span> {data.details.age}
+              </p>
+            ) : null}
+            {data.details.city ? (
+              <p>
+                <span className="font-medium">City:</span> {data.details.city}
+              </p>
+            ) : null}
+            {data.details.workStatus ? (
+              <p className="sm:col-span-2">
+                <span className="font-medium">Work:</span>{" "}
+                {data.details.workStatus}
+              </p>
+            ) : null}
+            {data.details.degree ? (
+              <p className="sm:col-span-2">
+                <span className="font-medium">Degree:</span>{" "}
+                {data.details.degree}
+              </p>
+            ) : null}
+            {data.details.expenses ? (
+              <p className="sm:col-span-2">
+                <span className="font-medium">Gig goal:</span>{" "}
+                {data.details.expenses}
+              </p>
+            ) : null}
+          </div>
+          {data.details.customSkills.length > 0 ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {data.details.customSkills.map((skill) => (
+                <Badge key={skill} className="bg-accent-tint text-accent">
+                  {skill}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
           <div className="mt-4 flex items-center justify-between gap-4 rounded-xl bg-surface p-4">
             <div>
               <p className="text-xs text-muted-foreground">Rate card</p>
@@ -149,11 +192,21 @@ function ProfileEditSheet({
   onSaved: (data: ArtistProfileData) => void;
 }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [customSkillInput, setCustomSkillInput] = useState("");
   const form = useForm<ArtistProfileEditInput>({
     resolver: zodResolver(artistProfileEditSchema),
     defaultValues: {
       displayName: data.artist.displayName,
       bio: data.bio,
+      age: data.details.age,
+      city: data.details.city,
+      workStatus: data.details.workStatus,
+      expenses: data.details.expenses,
+      degree: data.details.degree,
+      customSkills: data.details.customSkills,
+      appearance: data.details.appearance,
+      avatarUrl: data.artist.avatarUrl ?? undefined,
       locationText: data.artist.locationText,
       skills: data.artist.skills,
       rateMin: data.artist.rateMin,
@@ -161,7 +214,9 @@ function ProfileEditSheet({
     },
   });
   const selectedSkills = form.watch("skills");
+  const customSkills = form.watch("customSkills");
   const isOpenToGigs = form.watch("isOpenToGigs");
+  const appearance = form.watch("appearance");
 
   function toggleSkill(skill: ArtistSkill) {
     const nextSkills = selectedSkills.includes(skill)
@@ -174,10 +229,51 @@ function ProfileEditSheet({
     });
   }
 
+  function addCustomSkill() {
+    const nextSkill = normalizeCustomSkill(customSkillInput);
+
+    if (!nextSkill) {
+      return;
+    }
+
+    form.setValue("customSkills", [...customSkills, nextSkill], {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setCustomSkillInput("");
+  }
+
+  function removeCustomSkill(skill: string) {
+    form.setValue(
+      "customSkills",
+      customSkills.filter((item) => item !== skill),
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      },
+    );
+  }
+
+  function onAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setAvatarFile(file);
+  }
+
   async function onSubmit(values: ArtistProfileEditInput) {
     try {
       setIsSaving(true);
-      onSaved(await updateArtistProfile(values));
+      let avatarUrl = values.avatarUrl;
+
+      if (avatarFile) {
+        avatarUrl = await uploadAvatarFile(avatarFile);
+      }
+
+      const nextData = await updateArtistProfile({
+        ...values,
+        avatarUrl,
+      });
+      setKollabTheme(values.appearance);
+      onSaved(nextData);
     } catch (error: unknown) {
       toast({
         title: "Profile not saved",
@@ -199,6 +295,33 @@ function ProfileEditSheet({
       </SheetHeader>
       <form className="space-y-5 px-4" onSubmit={form.handleSubmit(onSubmit)}>
         <div className="space-y-2">
+          <Label htmlFor="profileAvatar">Profile photo</Label>
+          <label
+            htmlFor="profileAvatar"
+            className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-primary/40 bg-primary-tint/60 p-4 text-sm transition-colors hover:bg-primary-tint"
+          >
+            <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Camera className="size-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium">
+                {avatarFile ? avatarFile.name : "Upload profile photo"}
+              </span>
+              <span className="block truncate text-xs text-muted-foreground">
+                JPG or PNG, max 5MB.
+              </span>
+            </span>
+          </label>
+          <input
+            id="profileAvatar"
+            type="file"
+            accept="image/jpeg,image/png"
+            className="sr-only"
+            aria-label="Upload artist profile photo"
+            onChange={onAvatarChange}
+          />
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="displayName">Name</Label>
           <Input
             id="displayName"
@@ -215,6 +338,48 @@ function ProfileEditSheet({
             className="w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             {...form.register("bio")}
           />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="age">Age</Label>
+            <Input id="age" aria-label="Artist age" {...form.register("age")} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              aria-label="Artist city"
+              {...form.register("city")}
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="workStatus">Study, job, or internship</Label>
+          <Input
+            id="workStatus"
+            aria-label="Study job or internship"
+            placeholder="Studying, working, interning, freelancing"
+            {...form.register("workStatus")}
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="degree">Degree</Label>
+            <Input
+              id="degree"
+              aria-label="Artist degree"
+              {...form.register("degree")}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="expenses">Gig goal</Label>
+            <Input
+              id="expenses"
+              aria-label="Artist gig goal or expenses"
+              placeholder="Gear, rent, commute"
+              {...form.register("expenses")}
+            />
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="locationText">Location</Label>
@@ -254,6 +419,44 @@ function ProfileEditSheet({
               </button>
             ))}
           </div>
+          <div className="flex gap-2">
+            <Input
+              aria-label="Other skill"
+              placeholder="Other skill"
+              value={customSkillInput}
+              onChange={(event) => setCustomSkillInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  addCustomSkill();
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              aria-label="Add other skill"
+              onClick={addCustomSkill}
+            >
+              Add
+            </Button>
+          </div>
+          {customSkills.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {customSkills.map((skill) => (
+                <button
+                  key={skill}
+                  type="button"
+                  aria-label={`Remove ${skill}`}
+                  className="inline-flex items-center gap-1 rounded-full bg-accent-tint px-3 py-2 text-sm font-medium text-accent"
+                  onClick={() => removeCustomSkill(skill)}
+                >
+                  {skill}
+                  <X className="size-3.5" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="flex items-center justify-between rounded-xl bg-surface p-4">
           <Label htmlFor="profileOpenToGigs">Open to Gigs</Label>
@@ -280,6 +483,53 @@ function ProfileEditSheet({
               )}
             />
           </button>
+        </div>
+        <div className="space-y-2">
+          <Label>Appearance</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              aria-label="Use light appearance"
+              aria-pressed={appearance === "light"}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium",
+                appearance === "light"
+                  ? "border-primary bg-primary-tint text-primary"
+                  : "border-border bg-white text-foreground",
+              )}
+              onClick={() => {
+                form.setValue("appearance", "light", {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                setKollabTheme("light");
+              }}
+            >
+              <Sun className="size-4" aria-hidden="true" />
+              Light
+            </button>
+            <button
+              type="button"
+              aria-label="Use dark appearance"
+              aria-pressed={appearance === "dark"}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium",
+                appearance === "dark"
+                  ? "border-primary bg-primary-tint text-primary"
+                  : "border-border bg-white text-foreground",
+              )}
+              onClick={() => {
+                form.setValue("appearance", "dark", {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                setKollabTheme("dark");
+              }}
+            >
+              <Moon className="size-4" aria-hidden="true" />
+              Dark
+            </button>
+          </div>
         </div>
         <SheetFooter className="px-0">
           <Button

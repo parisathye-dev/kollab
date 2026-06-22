@@ -383,6 +383,7 @@ function ArtistOnboardingPanel() {
 
 function BusinessOnboardingPanel() {
   const router = useRouter();
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<BusinessOnboardingInput>({
     resolver: zodResolver(businessOnboardingSchema),
@@ -396,7 +397,16 @@ function BusinessOnboardingPanel() {
   async function onSubmit(values: BusinessOnboardingInput) {
     try {
       setIsSubmitting(true);
-      const homePath = await saveBusinessOnboarding(values);
+      let avatarUrl = values.avatar_url;
+
+      if (avatarFile) {
+        avatarUrl = await uploadAvatarFile(avatarFile);
+      }
+
+      const homePath = await saveBusinessOnboarding({
+        ...values,
+        avatar_url: avatarUrl,
+      });
       router.replace(homePath);
     } catch (error: unknown) {
       toast({
@@ -409,6 +419,11 @@ function BusinessOnboardingPanel() {
     }
   }
 
+  function onAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setAvatarFile(file);
+  }
+
   return (
     <Card className="border-0 bg-white shadow-sm">
       <CardHeader>
@@ -419,6 +434,34 @@ function BusinessOnboardingPanel() {
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={form.handleSubmit(onSubmit)}>
+          <div className="space-y-2">
+            <Label htmlFor="businessAvatar">Logo or profile photo</Label>
+            <label
+              htmlFor="businessAvatar"
+              className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-secondary/40 bg-secondary-tint/60 p-4 text-sm transition-colors hover:bg-secondary-tint"
+            >
+              <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-secondary-foreground">
+                <Upload className="size-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium">
+                  {avatarFile ? avatarFile.name : "Upload logo"}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  JPG or PNG, max 5MB.
+                </span>
+              </span>
+            </label>
+            <input
+              id="businessAvatar"
+              type="file"
+              accept="image/jpeg,image/png"
+              className="sr-only"
+              aria-label="Upload business logo"
+              onChange={onAvatarChange}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="businessName">Business name</Label>
             <Input

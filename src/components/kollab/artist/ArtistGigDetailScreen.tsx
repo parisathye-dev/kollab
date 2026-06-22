@@ -4,7 +4,13 @@ import dynamic from "next/dynamic";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { CalendarDays, CheckCircle2, IndianRupee, MapPin } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  IndianRupee,
+  MapPin,
+  Send,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,6 +204,8 @@ function ApplicationDialog({
       budgetMax: gig.budgetMax,
     },
   });
+  const pitchText = form.watch("pitchText");
+  const pitchLength = pitchText.trim().length;
 
   async function onSubmit(values: ApplyForGigInput) {
     try {
@@ -239,11 +247,12 @@ function ApplicationDialog({
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Apply for this Gig</DialogTitle>
           <DialogDescription>
-            Budget: {formatInr(gig.budgetMin)} - {formatInr(gig.budgetMax)}
+            Send your pitch to {gig.businessName}. Budget:{" "}
+            {formatInr(gig.budgetMin)} - {formatInr(gig.budgetMax)}
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
@@ -259,8 +268,13 @@ function ApplicationDialog({
               aria-label="Application pitch"
               aria-invalid={Boolean(form.formState.errors.pitchText)}
               className="min-h-32 w-full rounded-xl border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              placeholder="Tell the business how you would approach this gig, your relevant work, and when you can deliver."
               {...form.register("pitchText")}
             />
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>Minimum 51 characters</span>
+              <span>{pitchLength}/51</span>
+            </div>
             {form.formState.errors.pitchText ? (
               <p className="text-xs text-danger">
                 {form.formState.errors.pitchText.message}
@@ -284,14 +298,15 @@ function ApplicationDialog({
             ) : null}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 -mx-6 bg-background px-6 pb-1 pt-3">
             <Button
               type="submit"
-              className="w-full"
-              aria-label="Submit application"
+              className="w-full gap-2"
+              aria-label="Send application pitch to business"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Submitting" : "Submit application"}
+              {isSubmitting ? "Sending pitch" : "Send pitch to business"}
+              <Send className="size-4" aria-hidden="true" />
             </Button>
           </DialogFooter>
         </form>
